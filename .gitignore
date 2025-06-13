@@ -1,0 +1,17 @@
+# Virtual environment
+autoclicker_venv/
+
+# Logs
+autoclicker.log*
+*.log
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# IDE-specific files
+.vscode/
