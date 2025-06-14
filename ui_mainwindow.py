@@ -15,7 +15,7 @@ from core.calibrator import CalibrationWorker
 from core.clicker import scan_for_phrase_and_click, scan_for_download_phrase_with_beep
 from core.logger import setup_logging, LOG_PATH, logger
 from core.utils import load_settings, save_settings, tesseract_found, success_beep
-from core.update_checker import check_update_loop
+from core.update_checker import UpdateChecker  # Updated import
 
 class AutoClickerApp(QWidget):
     def __init__(self):
@@ -46,8 +46,8 @@ class AutoClickerApp(QWidget):
             self.log(f"📍 Using coordinates {self.button_position} on monitor {self.monitor}")
         else:
             self.log("⚠️ Invalid or no coordinates found. Please run calibration.")
-        check_update_loop(self, self.log)
-
+        self.update_checker = UpdateChecker(self, self.log)  # Initialize UpdateChecker
+        self.update_checker.check_update_loop()  # Start update checking
 
     def log(self, msg):
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
