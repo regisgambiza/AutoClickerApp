@@ -6,7 +6,7 @@ import webbrowser
 from PyQt6.QtWidgets import QMessageBox
 from PyQt6.QtCore import pyqtSignal, QObject
 
-APP_VERSION = "3.0"  # Current version of the app
+APP_VERSION = "3.1"  # Current version of the app
 UPDATE_URL = "https://raw.githubusercontent.com/regisgambiza/AutoClickerApp/refs/heads/main/update.json"  # Replace with your actual update URL
 
 class UpdateChecker(QObject):
