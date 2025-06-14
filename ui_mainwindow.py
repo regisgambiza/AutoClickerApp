@@ -14,7 +14,8 @@ from PyQt6.QtCore import pyqtSignal, QObject
 from core.calibrator import CalibrationWorker
 from core.clicker import scan_for_phrase_and_click, scan_for_download_phrase_with_beep
 from core.logger import setup_logging, LOG_PATH, logger
-from core.utils import load_settings, save_settings, tesseract_found, success_beep  # Added success_beep
+from core.utils import load_settings, save_settings, tesseract_found, success_beep
+from core.update_checker import check_update_loop
 
 class AutoClickerApp(QWidget):
     def __init__(self):
@@ -41,9 +42,12 @@ class AutoClickerApp(QWidget):
         self.stop_event = threading.Event()
         self.running = False
         self.button_position, self.monitor = load_settings()
-        self.log(f"📁 Log file located at: {LOG_PATH}")
-        if not self.button_position or not self.monitor:
-            self.log("⚠️ No saved calibration detected. Please run calibration first.")
+        if self.button_position and self.monitor:
+            self.log(f"📍 Using coordinates {self.button_position} on monitor {self.monitor}")
+        else:
+            self.log("⚠️ Invalid or no coordinates found. Please run calibration.")
+        check_update_loop(self, self.log)
+
 
     def log(self, msg):
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
