@@ -12,10 +12,10 @@ from PyQt6.QtWidgets import QWidget, QTextEdit, QApplication
 from PyQt6.QtGui import QIcon, QTextCursor
 from PyQt6.QtCore import pyqtSignal, QObject
 from core.calibrator import CalibrationWorker
-from core.clicker import scan_for_phrase_and_click, scan_for_download_phrase_with_beep
+from core.clicker import scan_for_phrase_and_click, scan_for_download_phrase_with_beep, find_and_handle_reference_images
 from core.logger import setup_logging, LOG_PATH, logger
 from core.utils import load_settings, save_settings, tesseract_found, success_beep
-from core.update_checker import UpdateChecker  # Updated import
+from core.update_checker import UpdateChecker
 
 class AutoClickerApp(QWidget):
     def __init__(self):
@@ -37,17 +37,23 @@ class AutoClickerApp(QWidget):
         self.btn_start.clicked.connect(self.start_threads)
         self.btn_stop.clicked.connect(self.stop_threads)
         self.btn_open_log.clicked.connect(self.open_log_folder)
+        self.search_method_combo.setCurrentIndex(0)  # Set Image Search as default
+        self.search_method_combo.currentTextChanged.connect(self.on_search_method_changed)
 
         self.thread1 = self.thread2 = None
         self.stop_event = threading.Event()
         self.running = False
+        self.search_method = self.search_method_combo.currentText()  # Initialize with default
         self.button_position, self.monitor = load_settings()
         if self.button_position and self.monitor:
             self.log(f"📍 Using coordinates {self.button_position} on monitor {self.monitor}")
         else:
             self.log("⚠️ Invalid or no coordinates found. Please run calibration.")
-        self.update_checker = UpdateChecker(self, self.log)  # Initialize UpdateChecker
-        self.update_checker.check_update_loop()  # Start update checking
+        self.update_checker = UpdateChecker(self, self.log)
+        self.update_checker.check_update_loop()
+
+        # Initial check to set calibrate button state
+        self.on_search_method_changed(self.search_method)
 
     def log(self, msg):
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -56,6 +62,12 @@ class AutoClickerApp(QWidget):
         self.status.append(full_msg)
         self.status.moveCursor(QTextCursor.MoveOperation.End)
         QApplication.processEvents()
+
+    def on_search_method_changed(self, method):
+        self.search_method = method
+        self.log(f"🔄 Search method changed to {method}")
+        # Disable calibrate button if Image Search is selected
+        self.btn_calibrate.setEnabled(method != "Image Search")
 
     def start_calibration(self):
         if hasattr(self, 'worker') and self.worker and threading.Thread(target=self.worker.run).is_alive():
@@ -83,27 +95,37 @@ class AutoClickerApp(QWidget):
         if not self.button_position or not self.monitor:
             self.log("❌ No calibration data available. Please calibrate the app first.")
             return
-        if not tesseract_found:
-            self.log("❌ Tesseract OCR is not detected. Install it at C:\\Program Files\\Tesseract-OCR\\tesseract.exe and restart.")
+        if not tesseract_found and self.search_method == "OCR":
+            self.log("❌ Tesseract OCR is not detected. Install it at C:\\Program Files\\Tesseract-OCR\\tesseract.exe or switch to Image Search.")
             return
 
-        self.log(f"▶️ Starting automation threads for position {self.button_position} on monitor {self.monitor}")
+        self.log(f"▶️ Starting automation threads for position {self.button_position} on monitor {self.monitor} with {self.search_method}")
         self.running = True
         self.stop_event.clear()
-        self.thread1 = threading.Thread(
-            target=scan_for_phrase_and_click,
-            args=(self.button_position, self.monitor, "PRESS TO CONTINUE PLAYING", 10, self.log, self.stop_event),
-            daemon=True,
-            name="ClickScannerThread"
-        )
-        self.thread2 = threading.Thread(
-            target=scan_for_download_phrase_with_beep,
-            args=(self.monitor, "CLICK TO DOWNLOAD", 10, self.log, self.stop_event),
-            daemon=True,
-            name="DownloadBeepThread"
-        )
+        if self.search_method == "OCR":
+            self.thread1 = threading.Thread(
+                target=scan_for_phrase_and_click,
+                args=(self.button_position, self.monitor, "PRESS TO CONTINUE PLAYING", 10, self.log, self.stop_event),
+                daemon=True,
+                name="ClickScannerThread"
+            )
+            self.thread2 = threading.Thread(
+                target=scan_for_download_phrase_with_beep,
+                args=(self.monitor, "CLICK TO DOWNLOAD", 10, self.log, self.stop_event),
+                daemon=True,
+                name="DownloadBeepThread"
+            )
+        else:
+            self.thread1 = threading.Thread(
+                target=find_and_handle_reference_images,
+                args=(self.log, self.stop_event, 0.8),
+                daemon=True,
+                name="ImageScannerThread"
+            )
+            self.thread2 = None  # Only one thread needed for image search
         self.thread1.start()
-        self.thread2.start()
+        if self.thread2:
+            self.thread2.start()
         self.log("✅ Automation threads started successfully.")
 
     def stop_threads(self):
